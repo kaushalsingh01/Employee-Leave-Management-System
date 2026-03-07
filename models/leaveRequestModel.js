@@ -71,7 +71,6 @@ const findApprovedBetween = async (startDate, endDate) => {
     return result.rows;
 };
 
-// ✅ FIXED EXPORT
 module.exports = {
     createLeaveRequest,
     getPendingForManager,
