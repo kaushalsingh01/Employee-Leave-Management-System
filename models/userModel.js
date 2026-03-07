@@ -53,6 +53,12 @@ const updateUser = async (id, fields) => {
     return result.rows[0];
 };
 
+const deleteUser = async (id) => {
+    const query = 'DELETE FROM users WHERE id = $1';
+    const values = [id];
+    const result = await pool.query(query, values);
+    return result.rowCount;
+}
 const findEmployeesByManager = async (manager_id) => {
     const query = 'SELECT id, name, email FROM users WHERE manager_id = $1';
     const values = [manager_id];
