@@ -4,7 +4,6 @@ const LeaveBalance = require("../../models/leaveBalanceModel");
 const User = require("../../models/userModel");
 const LeaveType = require("../../models/leaveTypeModel");
 
-// Helper function to calculate calendar days
 const calculateCalendarDays = (startDate, endDate) => {
     const start = new Date(startDate);
     const end = new Date(endDate);
@@ -18,7 +17,6 @@ const calculateCalendarDays = (startDate, endDate) => {
     return diffDays;
 };
 
-// Helper function to calculate business days (excluding weekends)
 const calculateBusinessDays = (startDate, endDate) => {
     const start = new Date(startDate);
     const end = new Date(endDate);
@@ -40,7 +38,6 @@ const calculateBusinessDays = (startDate, endDate) => {
     return count;
 };
 
-// Helper function to validate dates
 const validateDates = (startDate, endDate, leaveType = null) => {
     const start = new Date(startDate);
     const end = new Date(endDate);
@@ -90,7 +87,6 @@ const validateDates = (startDate, endDate, leaveType = null) => {
     return days;
 };
 
-// Helper function to check for overlapping requests
 const checkOverlappingRequests = async (userId, startDate, endDate, excludeRequestId = null) => {
     const overlapping = await LeaveRequest.checkOverlapping(
         userId,
@@ -101,24 +97,18 @@ const checkOverlappingRequests = async (userId, startDate, endDate, excludeReque
     return overlapping.length > 0;
 };
 
-// Helper function to check if user is manager of employee
+
 const isManagerOf = async (managerId, employeeId) => {
     const employee = await User.findById(employeeId);
     return employee && employee.manager_id === managerId;
 };
 
-// ==================== EMPLOYEE ROUTES ====================
 
-/**
- * POST / - Submit a new leave request
- * Access: Employee only
- */
 const submitRequest = async (req, res, next) => {
     try {
         const { leave_type_id, start_date, end_date, reason } = req.body;
         const user_id = req.user.id;
 
-        // Get leave type details
         const leaveType = await LeaveType.findById(leave_type_id);
         if (!leaveType) {
             throw new BaseAppError({
@@ -129,10 +119,8 @@ const submitRequest = async (req, res, next) => {
             });
         }
 
-        // Validate dates and calculate days
         const days = validateDates(start_date, end_date, leaveType);
 
-        // Check for overlapping requests
         const hasOverlap = await checkOverlappingRequests(user_id, start_date, end_date);
         if (hasOverlap) {
             throw new BaseAppError({
@@ -143,7 +131,6 @@ const submitRequest = async (req, res, next) => {
             });
         }
 
-        // Check leave balance
         const balances = await LeaveBalance.getByUser(user_id);
         const leaveTypeBalance = balances.find(b => b.leave_type_id === parseInt(leave_type_id));
 
@@ -170,7 +157,6 @@ const submitRequest = async (req, res, next) => {
             });
         }
 
-        // Create leave request
         const leaveRequest = await LeaveRequest.createLeaveRequest({
             user_id,
             leave_type_id,
@@ -178,8 +164,6 @@ const submitRequest = async (req, res, next) => {
             end_date,
             reason,
         });
-
-        // Add calculated days to response
         const responseRequest = {
             ...leaveRequest,
             calculated_days: days,
@@ -195,15 +179,9 @@ const submitRequest = async (req, res, next) => {
     }
 };
 
-/**
- * GET /my-requests - Get current user's leave requests
- * Access: Employee or Manager
- */
 const getMyRequests = async (req, res, next) => {
     try {
         const requests = await LeaveRequest.getByUser(req.user.id);
-
-        // Enhance requests with leave type names and calculated days
         const enhancedRequests = await Promise.all(requests.map(async (request) => {
             const leaveType = await LeaveType.findById(request.leave_type_id);
             const reviewer = request.reviewed_by ? await User.findById(request.reviewed_by) : null;
@@ -225,15 +203,10 @@ const getMyRequests = async (req, res, next) => {
     }
 };
 
-/**
- * GET /my-balance - Get current user's leave balances
- * Access: Employee or Manager
- */
+
 const getMyBalance = async (req, res, next) => {
     try {
         const balances = await LeaveBalance.getByUser(req.user.id);
-
-        // Enhance with leave type names
         const enhancedBalances = await Promise.all(balances.map(async (balance) => {
             const leaveType = await LeaveType.findById(balance.leave_type_id);
             return {
@@ -249,17 +222,11 @@ const getMyBalance = async (req, res, next) => {
     }
 };
 
-// ==================== MANAGER ROUTES ====================
 
-/**
- * GET /pending - Get pending requests for manager's team
- * Access: Manager only
- */
 const getPendingRequests = async (req, res, next) => {
     try {
         const requests = await LeaveRequest.getPendingForManager(req.user.id);
 
-        // Enhance requests with additional info
         const enhancedRequests = await Promise.all(requests.map(async (request) => {
             const leaveType = await LeaveType.findById(request.leave_type_id);
             const employee = await User.findById(request.user_id);
@@ -279,27 +246,19 @@ const getPendingRequests = async (req, res, next) => {
     }
 };
 
-/**
- * GET /team - Get all requests from manager's team
- * Access: Manager only
- */
 const getTeamRequests = async (req, res, next) => {
     try {
-        // Get all employees under this manager
         const employees = await User.findEmployeesByManager(req.user.id);
         const employeeIds = employees.map(emp => emp.id);
-
-        // Get all requests for these employees
+es
         const allRequests = [];
         for (const employeeId of employeeIds) {
             const requests = await LeaveRequest.getByUser(employeeId);
             allRequests.push(...requests);
         }
 
-        // Sort by submitted_at descending
         allRequests.sort((a, b) => new Date(b.submitted_at) - new Date(a.submitted_at));
 
-        // Enhance with employee and leave type info
         const enhancedRequests = await Promise.all(allRequests.map(async (request) => {
             const leaveType = await LeaveType.findById(request.leave_type_id);
             const employee = employees.find(emp => emp.id === request.user_id);
@@ -321,15 +280,10 @@ const getTeamRequests = async (req, res, next) => {
     }
 };
 
-/**
- * GET /team/:employeeId/balance - Get specific employee's leave balance
- * Access: Manager only
- */
 const getEmployeeBalance = async (req, res, next) => {
     try {
         const { employeeId } = req.params;
 
-        // Verify employee exists and belongs to this manager
         const employee = await User.findById(employeeId);
         if (!employee) {
             throw new BaseAppError({
@@ -340,7 +294,6 @@ const getEmployeeBalance = async (req, res, next) => {
             });
         }
 
-        // This check is already done by isDirectManager middleware, but double-check
         if (employee.manager_id !== req.user.id) {
             throw new BaseAppError({
                 message: "This employee does not report to you",
@@ -352,7 +305,6 @@ const getEmployeeBalance = async (req, res, next) => {
 
         const balances = await LeaveBalance.getByUser(employeeId);
 
-        // Enhance with leave type names
         const enhancedBalances = await Promise.all(balances.map(async (balance) => {
             const leaveType = await LeaveType.findById(balance.leave_type_id);
             return {
@@ -369,19 +321,13 @@ const getEmployeeBalance = async (req, res, next) => {
     }
 };
 
-/**
- * PUT /:id/approve - Approve or reject a leave request
- * Access: Manager only (with isDirectManager check)
- */
 const processRequest = async (req, res, next) => {
     try {
         const { id } = req.params;
         const { status, comments } = req.body;
 
-        // The employeeId is set by the middleware from the leave request
         const employeeId = req.employeeId;
 
-        // Validate status
         if (!['approved', 'rejected'].includes(status)) {
             throw new BaseAppError({
                 message: "Status must be either 'approved' or 'rejected'",
@@ -391,7 +337,6 @@ const processRequest = async (req, res, next) => {
             });
         }
 
-        // Get the request details
         const leaveRequest = await LeaveRequest.findById(id);
         if (!leaveRequest) {
             throw new BaseAppError({
@@ -402,7 +347,6 @@ const processRequest = async (req, res, next) => {
             });
         }
 
-        // Check if request is already processed
         if (leaveRequest.status !== 'pending') {
             throw new BaseAppError({
                 message: `This request has already been ${leaveRequest.status}`,
@@ -412,20 +356,15 @@ const processRequest = async (req, res, next) => {
             });
         }
 
-        // Get leave type for days calculation
         const leaveType = await LeaveType.findById(leaveRequest.leave_type_id);
-
-        // Calculate days for balance deduction
         const days = leaveType?.name?.toLowerCase().includes('business')
             ? calculateBusinessDays(leaveRequest.start_date, leaveRequest.end_date)
             : calculateCalendarDays(leaveRequest.start_date, leaveRequest.end_date);
 
-        // If approving, check balance again
         if (status === "approved") {
             const balance = await LeaveBalance.getBalance(employeeId, leaveRequest.leave_type_id);
 
             if (!balance || balance.balance < days) {
-                // Auto-reject if insufficient balance
                 const updatedRequest = await LeaveRequest.updateStatus(
                     id,
                     'rejected',
@@ -439,7 +378,6 @@ const processRequest = async (req, res, next) => {
                 });
             }
 
-            // Deduct from balance
             const deducted = await LeaveBalance.deductBalance(
                 employeeId,
                 leaveRequest.leave_type_id,
@@ -456,7 +394,7 @@ const processRequest = async (req, res, next) => {
             }
         }
 
-        // Update the request status
+
         const updatedRequest = await LeaveRequest.updateStatus(
             id,
             status,
@@ -478,18 +416,10 @@ const processRequest = async (req, res, next) => {
     }
 };
 
-// ==================== SHARED/OWNERSHIP ROUTES ====================
-
-/**
- * GET /:id - Get specific leave request by ID
- * Access: Employee (own requests) or Manager (team requests)
- */
 const getRequestById = async (req, res, next) => {
     try {
         const { id } = req.params;
 
-        // The request is already fetched by middleware and attached to req
-        // But we'll fetch it again to ensure we have latest data
         const leaveRequest = await LeaveRequest.findById(id);
 
         if (!leaveRequest) {
@@ -501,21 +431,17 @@ const getRequestById = async (req, res, next) => {
             });
         }
 
-        // Get additional info
         const leaveType = await LeaveType.findById(leaveRequest.leave_type_id);
         const employee = await User.findById(leaveRequest.user_id);
         const reviewer = leaveRequest.reviewed_by ? await User.findById(leaveRequest.reviewed_by) : null;
 
-        // Calculate days
         const calendarDays = calculateCalendarDays(leaveRequest.start_date, leaveRequest.end_date);
         const businessDays = leaveType?.name?.toLowerCase().includes('business')
             ? calculateBusinessDays(leaveRequest.start_date, leaveRequest.end_date)
             : null;
 
-        // Get current balance for this leave type
         const currentBalance = await LeaveBalance.getBalance(leaveRequest.user_id, leaveRequest.leave_type_id);
 
-        // Enhance response
         const enhancedRequest = {
             ...leaveRequest,
             leave_type_name: leaveType?.name || 'Unknown',
@@ -540,10 +466,6 @@ const getRequestById = async (req, res, next) => {
     }
 };
 
-/**
- * POST /:id/cancel - Cancel a pending leave request (optional additional route)
- * You may want to add this route if not already defined
- */
 const cancelRequest = async (req, res, next) => {
     try {
         const { id } = req.params;
@@ -558,7 +480,6 @@ const cancelRequest = async (req, res, next) => {
             });
         }
 
-        // Only the employee can cancel their own pending requests
         if (leaveRequest.user_id !== req.user.id) {
             throw new BaseAppError({
                 message: "You can only cancel your own requests",
@@ -576,8 +497,6 @@ const cancelRequest = async (req, res, next) => {
                 type: "BUSINESS_ERROR",
             });
         }
-
-        // Update status to rejected (or you could add a 'cancelled' status to your enum)
         const cancelledRequest = await LeaveRequest.updateStatus(
             id,
             'rejected',
