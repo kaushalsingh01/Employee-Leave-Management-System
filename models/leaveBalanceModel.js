@@ -46,9 +46,20 @@ const initializeForUser = async (userId) => {
     await pool.query(query, [userId]);
 };
 
+const getBalance = async (userId, leaveTypeId) => {
+    const query = `
+        SELECT * FROM leave_balances 
+        WHERE user_id = $1 AND leave_type_id = $2
+    `;
+    const values = [userId, leaveTypeId];
+    const result = await pool.query(query, values);
+    return result.rows[0];
+};
+
 module.exports = {
     getByUser,
     deductBalance,
     addBalance,
-    initializeForUser
+    initializeForUser,
+    getBalance
 };

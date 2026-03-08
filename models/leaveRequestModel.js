@@ -71,11 +71,30 @@ const findApprovedBetween = async (startDate, endDate) => {
     return result.rows;
 };
 
+const checkOverlapping = async (userId, startDate, endDate, excludeId = null) => {
+    let query = `
+        SELECT * FROM leave_requests 
+        WHERE user_id = $1 
+        AND status IN ('pending', 'approved')
+        AND NOT (end_date < $2 OR start_date > $3)
+    `;
+    const values = [userId, startDate, endDate];
+
+    if (excludeId) {
+        query += ` AND id != $4`;
+        values.push(excludeId);
+    }
+
+    const result = await pool.query(query, values);
+    return result.rows;
+};
+
 module.exports = {
     createLeaveRequest,
     getPendingForManager,
     getByUser,
     updateStatus,
     findById,
-    findApprovedBetween
+    findApprovedBetween,
+    checkOverlapping
 };
