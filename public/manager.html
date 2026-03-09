@@ -27,6 +27,61 @@
         <!-- Alert Container -->
         <div id="alertContainer"></div>
 
+        <!-- Add to manager.html inside the main content area -->
+        <div class="calendar-container">
+            <div class="calendar-header">
+                <h2>Team Leave Calendar</h2>
+                <div class="calendar-controls">
+                    <button id="prevMonth" class="btn-secondary">← Previous</button>
+                    <span id="currentMonthDisplay">March 2026</span>
+                    <button id="nextMonth" class="btn-secondary">Next →</button>
+                </div>
+                <div class="calendar-filters">
+                    <label for="employeeFilter">Filter by Employee:</label>
+                    <select id="employeeFilter">
+                        <option value="all">All Team Members</option>
+                    </select>
+                </div>
+            </div>
+        
+            <div class="calendar-legend">
+                <span class="legend-item">
+                    <span class="color-box vacation"></span> Vacation
+                </span>
+                <span class="legend-item">
+                    <span class="color-box sick"></span> Sick Leave
+                </span>
+                <span class="legend-item">
+                    <span class="color-box personal"></span> Personal
+                </span>
+                <span class="legend-item">
+                    <span class="color-box today"></span> Today
+                </span>
+            </div>
+        
+            <div id="calendar" class="calendar">
+                <div class="calendar-weekdays">
+                    <div>Sun</div>
+                    <div>Mon</div>
+                    <div>Tue</div>
+                    <div>Wed</div>
+                    <div>Thu</div>
+                    <div>Fri</div>
+                    <div>Sat</div>
+                </div>
+                <div id="calendarGrid" class="calendar-grid"></div>
+            </div>
+        </div>
+        
+        <!-- Leave Details Modal -->
+        <div id="leaveModal" class="modal">
+            <div class="modal-content">
+                <span class="close">&times;</span>
+                <h3>Leave Details</h3>
+                <div id="leaveDetails"></div>
+            </div>
+        </div>
+
         <!-- Tabs -->
         <div style="display: flex; gap: 10px; margin-bottom: 20px;">
             <button class="btn" onclick="showTab('pending')">Pending Requests</button>
