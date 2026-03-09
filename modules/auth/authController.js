@@ -7,26 +7,46 @@ const register = async (req, res, next) => {
     try {
         const { name, email, password, role, manager_id } = req.body;
 
-        // Validation
-        if (!name || !email || !password || !role) {
+        // Check if user already exists
+        const existingUser = await User.findByEmail(email);
+        if (existingUser) {
             throw new BaseAppError({
-                message: "Missing required fields",
-                errorCode: "MISSING_FIELDS",
-                statusCode: 400,
+                message: "User with this email already exists",
+                errorCode: "USER_EXISTS",
+                statusCode: 409,
                 type: "VALIDATION_ERROR",
             });
         }
 
         const hashedPassword = await bcrypt.hash(password, 10);
+
+        // Create user - this will automatically create leave balances
         const user = await User.createUser({
             name,
             email,
             password: hashedPassword,
             role,
-            manager_id,
+            manager_id: manager_id || null,
         });
 
-        res.status(201).json({ message: "User created successfully", user });
+        // Generate token for auto-login after registration
+        const token = jwt.sign(
+            { id: user.id, role: user.role },
+            process.env.JWT_SECRET,
+            { expiresIn: "1h" }
+        );
+
+        res.status(201).json({
+            message: "User created successfully",
+            token,
+            user: {
+                id: user.id,
+                name: user.name,
+                email: user.email,
+                role: user.role,
+                manager_id: user.manager_id
+            }
+        });
     } catch (error) {
         next(error);
     }
@@ -35,15 +55,6 @@ const register = async (req, res, next) => {
 const login = async (req, res, next) => {
     try {
         const { email, password } = req.body;
-
-        if (!email || !password) {
-            throw new BaseAppError({
-                message: "Email and password required",
-                errorCode: "MISSING_CREDENTIALS",
-                statusCode: 400,
-                type: "VALIDATION_ERROR",
-            });
-        }
 
         const user = await User.findByEmail(email);
         if (!user) {
@@ -65,7 +76,6 @@ const login = async (req, res, next) => {
             });
         }
 
-        // Ensure JWT_SECRET is defined
         if (!process.env.JWT_SECRET) {
             throw new BaseAppError({
                 message: "JWT secret not configured",
@@ -81,9 +91,18 @@ const login = async (req, res, next) => {
             { expiresIn: "1h" }
         );
 
+        // Get user with balances for the response
+        const userWithBalances = await User.getUserWithBalances(user.id);
+
         res.json({
             token,
-            user: { id: user.id, name: user.name, email: user.email, role: user.role },
+            user: userWithBalances || {
+                id: user.id,
+                name: user.name,
+                email: user.email,
+                role: user.role,
+                manager_id: user.manager_id
+            },
         });
     } catch (error) {
         next(error);
