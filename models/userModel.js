@@ -1,5 +1,5 @@
 const pool = require("../config/db")
-
+const leaveBalanceModel = require("../models/leaveBalanceModel")
 
 const findByEmail = async (email) => {
     const query = 'SELECT * FROM users WHERE email = $1';
@@ -15,15 +15,33 @@ const findById = async (id) => {
     return result.rows[0];
 };
 
-const createUser = async({name, email, password ,role, manager_id}) => {
-    const query = `
-    INSERT INTO users(name, email, password, role, manager_id)
-    VALUES($1, $2, $3, $4, $5)
-        RETURNING id, name, email, role, manager_id
-    `;
-    const values  = [name, email, password, role, manager_id || null];
-    const result = await pool.query(query, values);
-    return result.rows[0];
+const createUser = async ({ name, email, password, role, manager_id }) => {
+    const client = await pool.connect();
+
+    try {
+        await client.query('BEGIN');
+
+        // Insert user
+        const userQuery = `
+            INSERT INTO users (name, email, password, role, manager_id, created_at)
+            VALUES ($1, $2, $3, $4, $5, NOW())
+            RETURNING id, name, email, role, manager_id, created_at
+        `;
+        const userResult = await client.query(userQuery, [name, email, password, role, manager_id || null]);
+        const newUser = userResult.rows[0];
+
+        // Initialize leave balances for the new user (using the same transaction)
+        await leaveBalanceModel.initializeForUser(newUser.id, client);
+
+        await client.query('COMMIT');
+        return newUser;
+
+    } catch (error) {
+        await client.query('ROLLBACK');
+        throw error;
+    } finally {
+        client.release();
+    }
 };
 
 const updateUser = async (id, fields) => {
@@ -66,6 +84,24 @@ const findEmployeesByManager = async (manager_id) => {
     return result.rows;
 };
 
+const getUserWithBalances = async (userId) => {
+    const query = `
+        SELECT u.id, u.name, u.email, u.role, u.manager_id,
+               json_agg(json_build_object(
+                   'leave_type', lt.name,
+                   'balance', lb.balance,
+                   'leave_type_id', lt.id
+               )) as leave_balances
+        FROM users u
+        LEFT JOIN leave_balances lb ON u.id = lb.user_id
+        LEFT JOIN leave_types lt ON lb.leave_type_id = lt.id
+        WHERE u.id = $1
+        GROUP BY u.id
+    `;
+    const result = await pool.query(query, [userId]);
+    return result.rows[0];
+};
+
 
 module.exports = {
     findByEmail,
@@ -73,5 +109,6 @@ module.exports = {
     createUser,
     deleteUser,
     updateUser,
-    findEmployeesByManager
+    findEmployeesByManager,
+    getUserWithBalances
 };
