@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Employee Dashboard - Leave Management</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+
+<body>
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="navbar-content">
+            <a href="/dashboard.html" class="navbar-brand">Leave Management</a>
+            <div class="navbar-menu">
+                <span class="user-info">
+                    Welcome, <span id="userName"></span>
+                    <span class="user-role" id="userRole">Employee</span>
+                </span>
+                <a href="#" id="logoutBtn">Logout</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <!-- Alert Container -->
+        <div id="alertContainer"></div>
+
+        <!-- Leave Balance Cards -->
+        <h2>My Leave Balance</h2>
+        <div class="leave-balance-grid" id="balanceContainer">
+            <div class="spinner"></div>
+        </div>
+
+        <!-- Submit Leave Request Form -->
+        <div class="leave-form">
+            <h3>Submit Leave Request</h3>
+            <form id="leaveForm">
+                <div class="form-group">
+                    <label for="leave_type_id">Leave Type</label>
+                    <select id="leave_type_id" name="leave_type_id" required>
+                        <option value="">Select Leave Type</option>
+                        <option value="1">Sick Leave</option>
+                        <option value="2">Vacation</option>
+                        <option value="3">Casual Leave</option>
+                        <option value="4">Earned Leave</option>
+
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="start_date">Start Date</label>
+                    <input type="date" id="start_date" name="start_date" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="end_date">End Date</label>
+                    <input type="date" id="end_date" name="end_date" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="reason">Reason</label>
+                    <textarea id="reason" name="reason" rows="4" required minlength="10"></textarea>
+                </div>
+
+                <button type="submit" class="btn">Submit Request</button>
+            </form>
+        </div>
+
+        <!-- My Leave Requests -->
+        <h2>My Leave Requests</h2>
+        <div class="table-container" id="requestsContainer">
+            <div class="spinner"></div>
+        </div>
+    </div>
+
+    <!-- Cancel Request Modal -->
+    <div id="cancelModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Cancel Leave Request</h3>
+                <button class="modal-close" onclick="closeCancelModal()">&times;</button>
+            </div>
+            <form id="cancelForm">
+                <div class="form-group">
+                    <label for="cancelReason">Reason for cancellation (optional)</label>
+                    <textarea id="cancelReason" rows="3"></textarea>
+                </div>
+                <button type="submit" class="btn btn-danger">Cancel Request</button>
+            </form>
+        </div>
+    </div>
+
+    <script src="/js/api.js"></script>
+    <script src="/js/employee.js"></script>
+</body>
+
+</html>
