@@ -88,7 +88,7 @@ const validateDates = (startDate, endDate, leaveType = null) => {
 };
 
 const checkOverlappingRequests = async (userId, startDate, endDate, excludeRequestId = null) => {
-    const overlapping = await LeaveRequest.checkOverlapping(
+    const overlapping = await LeaveRequest.findOverlapping(
         userId,
         startDate,
         endDate,
@@ -97,12 +97,10 @@ const checkOverlappingRequests = async (userId, startDate, endDate, excludeReque
     return overlapping.length > 0;
 };
 
-
 const isManagerOf = async (managerId, employeeId) => {
     const employee = await User.findById(employeeId);
     return employee && employee.manager_id === managerId;
 };
-
 
 const submitRequest = async (req, res, next) => {
     try {
@@ -164,6 +162,7 @@ const submitRequest = async (req, res, next) => {
             end_date,
             reason,
         });
+
         const responseRequest = {
             ...leaveRequest,
             calculated_days: days,
@@ -203,7 +202,6 @@ const getMyRequests = async (req, res, next) => {
     }
 };
 
-
 const getMyBalance = async (req, res, next) => {
     try {
         const balances = await LeaveBalance.getByUser(req.user.id);
@@ -221,7 +219,6 @@ const getMyBalance = async (req, res, next) => {
         next(error);
     }
 };
-
 
 const getPendingRequests = async (req, res, next) => {
     try {
@@ -250,7 +247,7 @@ const getTeamRequests = async (req, res, next) => {
     try {
         const employees = await User.findEmployeesByManager(req.user.id);
         const employeeIds = employees.map(emp => emp.id);
-es
+
         const allRequests = [];
         for (const employeeId of employeeIds) {
             const requests = await LeaveRequest.getByUser(employeeId);
@@ -283,8 +280,9 @@ es
 const getEmployeeBalance = async (req, res, next) => {
     try {
         const { employeeId } = req.params;
+        const parsedEmployeeId = parseInt(employeeId);
 
-        const employee = await User.findById(employeeId);
+        const employee = await User.findById(parsedEmployeeId);
         if (!employee) {
             throw new BaseAppError({
                 message: "Employee not found",
@@ -303,7 +301,7 @@ const getEmployeeBalance = async (req, res, next) => {
             });
         }
 
-        const balances = await LeaveBalance.getByUser(employeeId);
+        const balances = await LeaveBalance.getByUser(parsedEmployeeId);
 
         const enhancedBalances = await Promise.all(balances.map(async (balance) => {
             const leaveType = await LeaveType.findById(balance.leave_type_id);
@@ -325,8 +323,20 @@ const processRequest = async (req, res, next) => {
     try {
         const { id } = req.params;
         const { status, comments } = req.body;
+        const parsedId = parseInt(id);
 
-        const employeeId = req.employeeId;
+        // Get the leave request first to find the employee
+        const leaveRequest = await LeaveRequest.findById(parsedId);
+        if (!leaveRequest) {
+            throw new BaseAppError({
+                message: "Leave request not found",
+                errorCode: "REQUEST_NOT_FOUND",
+                statusCode: 404,
+                type: "BUSINESS_ERROR",
+            });
+        }
+
+        const employeeId = leaveRequest.user_id;
 
         if (!['approved', 'rejected'].includes(status)) {
             throw new BaseAppError({
@@ -334,16 +344,6 @@ const processRequest = async (req, res, next) => {
                 errorCode: "INVALID_STATUS",
                 statusCode: 400,
                 type: "VALIDATION_ERROR",
-            });
-        }
-
-        const leaveRequest = await LeaveRequest.findById(id);
-        if (!leaveRequest) {
-            throw new BaseAppError({
-                message: "Leave request not found",
-                errorCode: "REQUEST_NOT_FOUND",
-                statusCode: 404,
-                type: "BUSINESS_ERROR",
             });
         }
 
@@ -362,11 +362,12 @@ const processRequest = async (req, res, next) => {
             : calculateCalendarDays(leaveRequest.start_date, leaveRequest.end_date);
 
         if (status === "approved") {
-            const balance = await LeaveBalance.getBalance(employeeId, leaveRequest.leave_type_id);
+            const balance = await LeaveBalance.getByUserAndType(employeeId, leaveRequest.leave_type_id);
 
             if (!balance || balance.balance < days) {
+                // Auto-reject if insufficient balance
                 const updatedRequest = await LeaveRequest.updateStatus(
-                    id,
+                    parsedId,
                     'rejected',
                     req.user.id,
                     comments || `Auto-rejected: Insufficient balance. Available: ${balance?.balance || 0}, Required: ${days}`
@@ -378,6 +379,7 @@ const processRequest = async (req, res, next) => {
                 });
             }
 
+            // Deduct the balance
             const deducted = await LeaveBalance.deductBalance(
                 employeeId,
                 leaveRequest.leave_type_id,
@@ -394,9 +396,9 @@ const processRequest = async (req, res, next) => {
             }
         }
 
-
+        // Update request status
         const updatedRequest = await LeaveRequest.updateStatus(
-            id,
+            parsedId,
             status,
             req.user.id,
             comments
@@ -419,8 +421,9 @@ const processRequest = async (req, res, next) => {
 const getRequestById = async (req, res, next) => {
     try {
         const { id } = req.params;
+        const parsedId = parseInt(id);
 
-        const leaveRequest = await LeaveRequest.findById(id);
+        const leaveRequest = await LeaveRequest.findById(parsedId);
 
         if (!leaveRequest) {
             throw new BaseAppError({
@@ -440,7 +443,7 @@ const getRequestById = async (req, res, next) => {
             ? calculateBusinessDays(leaveRequest.start_date, leaveRequest.end_date)
             : null;
 
-        const currentBalance = await LeaveBalance.getBalance(leaveRequest.user_id, leaveRequest.leave_type_id);
+        const balance = await LeaveBalance.getByUserAndType(leaveRequest.user_id, leaveRequest.leave_type_id);
 
         const enhancedRequest = {
             ...leaveRequest,
@@ -456,7 +459,7 @@ const getRequestById = async (req, res, next) => {
                 start_date: leaveRequest.start_date,
                 end_date: leaveRequest.end_date
             },
-            current_balance: currentBalance?.balance || 0,
+            current_balance: balance?.balance || 0,
             can_cancel: leaveRequest.status === 'pending' && leaveRequest.user_id === req.user.id
         };
 
@@ -469,8 +472,9 @@ const getRequestById = async (req, res, next) => {
 const cancelRequest = async (req, res, next) => {
     try {
         const { id } = req.params;
+        const parsedId = parseInt(id);
 
-        const leaveRequest = await LeaveRequest.findById(id);
+        const leaveRequest = await LeaveRequest.findById(parsedId);
         if (!leaveRequest) {
             throw new BaseAppError({
                 message: "Leave request not found",
@@ -497,11 +501,12 @@ const cancelRequest = async (req, res, next) => {
                 type: "BUSINESS_ERROR",
             });
         }
+
         const cancelledRequest = await LeaveRequest.updateStatus(
-            id,
-            'rejected',
+            parsedId,
+            'cancelled', // Use 'cancelled' instead of 'rejected' for employee cancellations
             req.user.id,
-            'Request cancelled by employee'
+            req.body.reason || 'Request cancelled by employee'
         );
 
         res.json({
@@ -522,5 +527,5 @@ module.exports = {
     getEmployeeBalance,
     processRequest,
     getRequestById,
-    cancelRequest, 
+    cancelRequest,
 };
