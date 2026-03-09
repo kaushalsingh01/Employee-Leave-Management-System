@@ -319,6 +319,37 @@ const validate = {
         next();
     },
 
+    dateRange: (req, res, next) => {
+        const { month, year } = req.query;
+        const errors = [];
+
+        if (month) {
+            const monthNum = parseInt(month);
+            if (isNaN(monthNum) || monthNum < 1 || monthNum > 12) {
+                errors.push("Month must be between 1 and 12");
+            }
+        }
+
+        if (year) {
+            const yearNum = parseInt(year);
+            const currentYear = new Date().getFullYear();
+            if (isNaN(yearNum) || yearNum < currentYear - 5 || yearNum > currentYear + 5) {
+                errors.push(`Year must be between ${currentYear - 5} and ${currentYear + 5}`);
+            }
+        }
+
+        if (errors.length > 0) {
+            throw new BaseAppError({
+                message: "Calendar date validation failed",
+                errorCode: "VALIDATION_ERROR",
+                statusCode: 400,
+                type: "VALIDATION_ERROR",
+                details: errors,
+            });
+        }
+        next();
+    },
+
     idsArray: (req, res, next) => {
         const { ids } = req.body;
         const errors = [];
