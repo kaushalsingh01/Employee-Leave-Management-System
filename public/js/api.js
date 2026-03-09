@@ -151,6 +151,20 @@ const API = {
                 body: JSON.stringify({ reason })
             });
             return API.handleResponse(response);
+        },
+
+        //Get Calender View of Leaves
+        async getCalendarData(month, year) {
+            let url = `${API.BASE_URL}/leaves/calendar`;
+            if (month && year) {
+                url += `?month=${month}&year=${year}`;
+            }
+
+            const response = await fetch(url, {
+                headers: API.getHeaders()
+            });
+
+            return API.handleResponse(response);
         }
     },
 
