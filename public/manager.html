@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manager Dashboard - Leave Management</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+
+<body>
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="navbar-content">
+            <a href="/manager.html" class="navbar-brand">Leave Management</a>
+            <div class="navbar-menu">
+                <span class="user-info">
+                    Welcome, <span id="userName"></span>
+                    <span class="user-role" id="userRole">Manager</span>
+                </span>
+                <a href="#" id="logoutBtn">Logout</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <!-- Alert Container -->
+        <div id="alertContainer"></div>
+
+        <!-- Tabs -->
+        <div style="display: flex; gap: 10px; margin-bottom: 20px;">
+            <button class="btn" onclick="showTab('pending')">Pending Requests</button>
+            <button class="btn btn-secondary" onclick="showTab('team')">Team Requests</button>
+        </div>
+
+        <!-- Pending Requests Tab -->
+        <div id="pendingTab">
+            <h2>Pending Leave Requests</h2>
+            <div class="table-container" id="pendingContainer">
+                <div class="spinner"></div>
+            </div>
+        </div>
+
+        <!-- Team Requests Tab -->
+        <div id="teamTab" style="display: none;">
+            <h2>Team Leave Requests</h2>
+            <div class="table-container" id="teamContainer">
+                <div class="spinner"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Approve/Reject Modal -->
+    <div id="actionModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modalTitle">Review Leave Request</h3>
+                <button class="modal-close" onclick="closeActionModal()">&times;</button>
+            </div>
+            <div id="requestDetails"></div>
+            <form id="actionForm">
+                <div class="form-group">
+                    <label for="comments">Comments</label>
+                    <textarea id="comments" rows="3" required></textarea>
+                </div>
+                <div style="display: flex; gap: 10px;">
+                    <button type="submit" class="btn btn-success" onclick="setAction('approved')">Approve</button>
+                    <button type="submit" class="btn btn-danger" onclick="setAction('rejected')">Reject</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="/js/api.js"></script>
+    <script src="/js/manager.js"></script>
+</body>
+
+</html>
