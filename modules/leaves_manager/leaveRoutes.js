@@ -16,6 +16,11 @@ router.post("/",
     leaveController.submitRequest
 );
 
+router.get("/calendar",
+    authorize("manager"),
+    validate.dateRange,
+    leaveController.getCalendarData
+);
 
 router.get("/my-requests",
     authorize("employee", "manager"),

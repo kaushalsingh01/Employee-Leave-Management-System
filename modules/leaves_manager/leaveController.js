@@ -3,6 +3,7 @@ const LeaveRequest = require("../../models/leaveRequestModel");
 const LeaveBalance = require("../../models/leaveBalanceModel");
 const User = require("../../models/userModel");
 const LeaveType = require("../../models/leaveTypeModel");
+const pool = require("../../config/db");
 
 const calculateCalendarDays = (startDate, endDate) => {
     const start = new Date(startDate);
@@ -518,6 +519,125 @@ const cancelRequest = async (req, res, next) => {
     }
 };
 
+// controllers/leaveController.js
+
+// Get calendar data for manager
+const getCalendarData = async (req, res, next) => {
+    try {
+        const { month, year } = req.query;
+        const managerId = req.user.id;
+
+        // Default to current month if not provided
+        const targetMonth = month ? parseInt(month) : new Date().getMonth() + 1;
+        const targetYear = year ? parseInt(year) : new Date().getFullYear();
+
+        // Calculate first and last day of month
+        const firstDay = new Date(targetYear, targetMonth - 1, 1);
+        const lastDay = new Date(targetYear, targetMonth, 0);
+
+        // Get all approved leaves for the manager's team in the specified month
+        const query = `
+            SELECT 
+                lr.id,
+                lr.start_date,
+                lr.end_date,
+                lr.reason,
+                u.id as user_id,
+                u.name as employee_name,
+                lt.name as leave_type,
+                lt.id as leave_type_id
+            FROM leave_requests lr
+            JOIN users u ON lr.user_id = u.id
+            JOIN leave_types lt ON lr.leave_type_id = lt.id
+            WHERE u.manager_id = $1 
+                AND lr.status = 'approved'
+                AND (
+                    (lr.start_date BETWEEN $2 AND $3)
+                    OR (lr.end_date BETWEEN $2 AND $3)
+                    OR ($2 BETWEEN lr.start_date AND lr.end_date)
+                )
+            ORDER BY lr.start_date
+        `;
+
+        const values = [managerId, firstDay, lastDay];
+        const result = await pool.query(query, values);
+
+        // Format dates for frontend
+        const leaves = result.rows.map(row => ({
+            ...row,
+            start_date: row.start_date.toISOString().split('T')[0],
+            end_date: row.end_date.toISOString().split('T')[0]
+        }));
+
+        // Get team members for filtering
+        const teamQuery = `
+            SELECT id, name 
+            FROM users 
+            WHERE manager_id = $1
+            ORDER BY name
+        `;
+        const teamResult = await pool.query(teamQuery, [managerId]);
+
+        res.json({
+            month: targetMonth,
+            year: targetYear,
+            leaves: leaves,
+            teamMembers: teamResult.rows,
+            calendar: generateCalendarGrid(targetYear, targetMonth, leaves)
+        });
+
+    } catch (error) {
+        next(error);
+    }
+};
+
+// Helper function to generate calendar grid
+const generateCalendarGrid = (year, month, leaves) => {
+    const firstDay = new Date(year, month - 1, 1);
+    const lastDay = new Date(year, month, 0);
+
+    const startDay = firstDay.getDay(); // 0 = Sunday, 1 = Monday, etc.
+    const totalDays = lastDay.getDate();
+
+    const weeks = [];
+    let currentWeek = new Array(7).fill(null);
+
+    // Fill in the days
+    for (let i = 0; i < startDay; i++) {
+        currentWeek[i] = { day: null, leaves: [] };
+    }
+
+    for (let day = 1; day <= totalDays; day++) {
+        const currentDate = new Date(year, month - 1, day);
+        const dateString = currentDate.toISOString().split('T')[0];
+
+        // Find leaves for this day
+        const dayLeaves = leaves.filter(leave => {
+            const start = new Date(leave.start_date);
+            const end = new Date(leave.end_date);
+            const current = new Date(dateString);
+            return current >= start && current <= end;
+        });
+
+        const weekIndex = Math.floor((day + startDay - 1) / 7);
+        const dayIndex = (day + startDay - 1) % 7;
+
+        if (!weeks[weekIndex]) {
+            weeks[weekIndex] = new Array(7).fill(null);
+        }
+
+        weeks[weekIndex][dayIndex] = {
+            day,
+            date: dateString,
+            leaves: dayLeaves,
+            isToday: currentDate.toDateString() === new Date().toDateString()
+        };
+    }
+
+    return weeks;
+};
+
+
 module.exports = {
     submitRequest,
     getMyRequests,
@@ -528,4 +648,5 @@ module.exports = {
     processRequest,
     getRequestById,
     cancelRequest,
+    getCalendarData
 };
